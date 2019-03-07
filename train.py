@@ -18,17 +18,19 @@ import argparse
 import json
 
 #command line inputs
-parser = argparse.ArgumentParser(description='Train a Neural Network using VGG16 or Densenet121 - example Black Eyed Susan /home/workspace/ImageClassifier/flowers/test/63/image_05878.jpg with 99% accuracy')
+parser = argparse.ArgumentParser(description='Train a Neural Network using VGG16 or Densenet121, input "gpu" to train on GPU; - example Black Eyed Susan /home/workspace/ImageClassifier/flowers/test/63/image_05878.jpg with 99% accuracy')
 parser.add_argument('-a', '--architecture', action="store",default="VGG16", type=str, help='Training Architecture Type')
 parser.add_argument('-l', '--learning_rate', action="store", default=0.001, help='Training Learning Rate, VGG16 works best with 0.001')
-parser.add_argument('-h_1', '--hidden_layer1', action="store", default=8000, type=int, help='1st hidden layer value, VGG16 default 8000')
-parser.add_argument('-h_2', '--hidden_layer2', action="store", default=800, type=int, help='2nd hidden layer value, VGG16 default 800')
+parser.add_argument('-h_1', '--hidden_layer1', action="store", default=4096, type=int, help='1st hidden layer value, VGG16 default 4096')
+parser.add_argument('-h_2', '--hidden_layer2', action="store", default=1000, type=int, help='2nd hidden layer value, VGG16 default 1000')
 parser.add_argument('-d', '--dropout', action="store", default=0.5, help='dropout rate of trainer, VGG16 default 0.5')
-parser.add_argument('-e', '--epochs', action="store", default=10, help='number of epochs to train')
-parser.add_argument('-g', '--gpu', action="store", default="gpu", help='train on GPU')
+parser.add_argument('-e', '--epochs', action="store", default=10, help='number of epochs to train, default 10')
+parser.add_argument('-g', '--gpu', action="store", help='train on GPU or CPU, input "gpu" else it will train on CPU(not advisable)')
 parser.add_argument('-sc', '--save_checkpoint', action="store", default="/home/workspace/ImageClassifier/checkpoint_mv.pth")
 parser.add_argument('-dir', '--data_dir', action="store", default="/home/workspace/ImageClassifier/flowers")
 parser.add_argument('-ipf', '--image_path_flw', action="store")
+parser.add_argument('-json', '--json_file', action="store") #'/home/workspace/ImageClassifier/cat_to_name.json'
+
 args = parser.parse_args()
 arch = args.architecture
 lr = args.learning_rate
@@ -40,6 +42,7 @@ gpu = args.gpu
 checkpoint_path = args.save_checkpoint
 path = args.data_dir
 image_path_flw = args.image_path_flw
+json_path = args.json_file
 
 
 arch_num = {"VGG16":25088,
@@ -125,7 +128,7 @@ model.classifier = classifier
 ## the learning rate and step size, epochs are feed forward and backward through the network, cuda is GPU
 
 #forward pass, backward pass, weight update
-def train_model(model, criterion, optimizer, scheduler, num_epochs=10, device = 'cuda'):
+def train_model(model, criterion, optimizer, scheduler, num_epochs):
     start_time = time.time()
 
     best_model_wts = copy.deepcopy(model.state_dict())
@@ -190,7 +193,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=10, device = 
     model.load_state_dict(best_model_wts)
     return model
 
-model = model.to('cuda')
+#model = model.to('cuda')
+model = model.to(device)
 criterion = nn.NLLLoss()
 optimizer = optim.Adam(model.classifier.parameters(), lr)
 lrschedule = lr_scheduler.StepLR(optimizer, step_size=4, gamma=0.1)
@@ -199,7 +203,7 @@ lrschedule = lr_scheduler.StepLR(optimizer, step_size=4, gamma=0.1)
 # Greatest accuracy found for the validation and test sets was optimizer learning rate of 0.001, lrschedule step size of 4
 ## with gamma 0.1 and epochs 10. Other test variables never yielded higher than 45% accuracy for validation set
 if __name__ == '__main__':
-    model_train = train_model(model, criterion, optimizer, lrschedule, num_epochs, 'cuda')
+    model_train = train_model(model, criterion, optimizer, lrschedule, num_epochs)
 
 # TODO: Do validation on the test set
 # used almost the same function as in training and validation but with torch.no_grad and model.forward(inputs).
@@ -244,6 +248,8 @@ if __name__ == '__main__':
     model.class_to_idx = image_datasets[train_dir].class_to_idx
     model.cpu()
     torch.save({'arch': arch,
+                'hidden_layer1': hidden_layer1,
+                'hidden_layer2': hidden_layer2,
             'state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'class_to_idx': model.class_to_idx},
